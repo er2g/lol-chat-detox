@@ -34,6 +34,17 @@ Toksik olmayan mesajlar (`gg wp` vb.) hiç değiştirilmeden gönderilir.
    bir durum kutusu (yeşil = açık algılandı). Sistemin çalıştığını görmek için.
 4. **Watcher** (`lol_watcher.pyw`): Windows başlangıcında sessizce çalışır;
    oyun süreci açılınca detox + overlay'i başlatır, kapanınca durdurur.
+5. **Ayarlar** (`lol_settings.py` / `LoLDetoxSettings.exe`): Prompt'u,
+   kısayolları ve Gemini modelini düzenleyen küçük bir ekran. Kaydedilen
+   ayarları çalışan detox ~2 saniye içinde otomatik alır, yeniden başlatma
+   gerekmez. Ayarlar `config.json`'da durur.
+
+## Kısayollar (varsayılan, ayarlardan değiştirilebilir)
+
+| Kısayol | İşlev |
+|---|---|
+| `Ctrl+Alt+D` | Detox aç/kapa (kapalıyken mesajlar olduğu gibi gider; sesli uyarı verir) |
+| `Ctrl+Alt+Q` | Detox'u tamamen kapat |
 
 ## Kurulum (kolay yol: exe)
 

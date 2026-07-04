@@ -22,12 +22,12 @@ ctypes.windll.user32.SetProcessDPIAware()
 import mss
 import keyboard
 import lol_chat_detector as detector
+import lol_config
 
-MODEL = "gemini-3.1-flash-lite"  # gerekirse ListModels ile doğrula
+cfg = lol_config.load_config()
+cfg_mtime = lol_config.config_mtime()
 
-# PyInstaller exe'sinde __file__ geçici klasörü gösterir; exe'nin yanına yaz
-BASE_DIR = os.path.dirname(
-    sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
+BASE_DIR = lol_config.BASE_DIR
 LOG_PATH = os.path.join(BASE_DIR, "lol_detox.log")
 
 
@@ -123,36 +123,15 @@ def log_history(original, detoxed):
     except OSError:
         pass
 
-PROMPT = (
-    "Sen bir League of Legends oyuncusunun kufur tercumanisin. Oyuncunun "
-    "toksik/kufurlu mesajindaki kufru ve ofkeyi, kufur icermeyen, resmi-edebi "
-    "bir dille UZUN UZUN BETIMLEYEREK ayni dilde yeniden yaz. Yani kufru "
-    "sansurlemek yerine, ne demek istedigini kibar ve detayli bir aciklamaya "
-    "cevir; komiklik bu ciddi-betimleyici tondan gelsin. Kurallar:\n"
-    "- Mesaj zaten toksik DEGILSE (kufur, hakaret, agresyon yoksa) HICBIR "
-    "degisiklik yapma, mesaji oldugu gibi geri yaz\n"
-    "- Kufur, hakaret, mustehcen kelime OLMAYACAK; ama ofkenin icerigi "
-    "detayli sekilde tarif EDILECEK\n"
-    "- Espriyi kendin ekleme, sirf betimlemenin ciddiyetinden gelsin; "
-    "sevecenlik, tatlilik, opucuk falan YOK\n"
-    "- Orijinal BUYUK HARFLE yazildiysa sen de BUYUK HARF kullan; kucuk "
-    "harfle yazildiysa kucuk harf kullan\n"
-    "- Tek satir, en fazla 180 karakter\n"
-    "- SADECE yeni mesaji yaz, aciklama ekleme\n\n"
-    "Ornek 1: 'YA MASTER YI SENIN BEN O ELLERINI SIKEYIM' -> "
-    "'MASTER YI, SU AN ELLERINE FIZIKSEL MUDAHALEDE BULUNMA ARZUSU DUYUYORUM "
-    "CUNKU ALDIGIN KARARLAR BENDE DERIN BIR HAYAL KIRIKLIGI YARATTI'\n"
-    "Ornek 2: 'amk yasuosu bi engel olsana' -> 'sevgili yasuo, rakibi "
-    "engelleme konusundaki kayitsizligin bende agza alinmayacak kelimelerle "
-    "ifade edilebilecek duygular uyandiriyor'\n\n"
-    "Mesaj: {msg}"
-)
+# Prompt ve model artık config.json'dan geliyor (lol_config.DEFAULTS)
 
 # --- durum ---
 chat_open = False
 buffer = []
 injecting = False
+enabled = True
 enter_hotkey = None
+exit_event = threading.Event()
 lock = threading.Lock()
 
 # event.name -> karakter olmayan tuşlar (yok sayılacaklar)
@@ -166,9 +145,11 @@ IGNORED = {
 
 def rewrite_with_gemini(text):
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{MODEL}:generateContent?key={API_KEY}")
+           f"{cfg['model']}:generateContent?key={API_KEY}")
+    # .format değil .replace: kullanıcı prompt'unda serbest {} olabilir
+    prompt = cfg["prompt"].replace("{msg}", text)
     body = json.dumps({
-        "contents": [{"parts": [{"text": PROMPT.format(msg=text)}]}],
+        "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.7, "maxOutputTokens": 200},
     }).encode("utf-8")
     req = urllib.request.Request(
@@ -243,11 +224,52 @@ def process_and_send(text):
         injecting = False
 
 
+def toggle_detox():
+    global enabled
+    enabled = not enabled
+    log(f"detox {'ACIK' if enabled else 'KAPALI (mesajlar oldugu gibi gider!)'}")
+    try:
+        import winsound
+        winsound.Beep(880 if enabled else 330, 180)
+    except Exception:
+        pass
+
+
+_hotkey_handles = []
+
+
+def register_hotkeys():
+    global _hotkey_handles
+    for h in _hotkey_handles:
+        try:
+            keyboard.remove_hotkey(h)
+        except (KeyError, ValueError):
+            pass
+    _hotkey_handles = [
+        keyboard.add_hotkey(cfg["exit_hotkey"], exit_event.set),
+        keyboard.add_hotkey(cfg["toggle_hotkey"], toggle_detox),
+    ]
+
+
+def reload_config_if_changed():
+    global cfg, cfg_mtime
+    m = lol_config.config_mtime()
+    if m == cfg_mtime:
+        return
+    cfg_mtime = m
+    old = cfg
+    cfg = lol_config.load_config()
+    if (old["exit_hotkey"] != cfg["exit_hotkey"]
+            or old["toggle_hotkey"] != cfg["toggle_hotkey"]):
+        register_hotkeys()
+    log("ayarlar yeniden yuklendi")
+
+
 def on_enter():
     global buffer
     if injecting:
         return
-    if not chat_open:
+    if not enabled or not chat_open:
         # chat kapalı: Enter chat'i açsın, aynen ilet
         send_enter_raw()
         return
@@ -263,7 +285,7 @@ def on_enter():
 
 def on_key(event):
     global buffer
-    if injecting or not chat_open:
+    if injecting or not enabled or not chat_open:
         return
     name = event.name
     if name is None or name in IGNORED:
@@ -287,7 +309,11 @@ def detector_loop():
     global chat_open, buffer
     sct = mss.mss()
     stable = detector.StableState(open_frames=3, close_frames=2)
+    tick = 0
     while True:
+        tick += 1
+        if tick % 40 == 0:  # ~2 saniyede bir ayar dosyasını kontrol et
+            reload_config_if_changed()
         if detector.is_lol_foreground():
             raw_open, _ = detector.decide(detector.grab_region_live(sct))
         else:
@@ -315,8 +341,10 @@ def main():
     threading.Thread(target=detector_loop, daemon=True).start()
     keyboard.on_press(on_key)
     enter_hotkey = keyboard.add_hotkey("enter", on_enter, suppress=True)
-    log(f"detox aktif (model: {MODEL}). Cikis: Ctrl+Alt+Q")
-    keyboard.wait("ctrl+alt+q")
+    register_hotkeys()
+    log(f"detox aktif (model: {cfg['model']}). "
+        f"Cikis: {cfg['exit_hotkey']}, Ac/Kapa: {cfg['toggle_hotkey']}")
+    exit_event.wait()
     log("kapatildi")
 
 
