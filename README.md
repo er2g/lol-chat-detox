@@ -35,7 +35,14 @@ Toksik olmayan mesajlar (`gg wp` vb.) hiç değiştirilmeden gönderilir.
 4. **Watcher** (`lol_watcher.pyw`): Windows başlangıcında sessizce çalışır;
    oyun süreci açılınca detox + overlay'i başlatır, kapanınca durdurur.
 
-## Kurulum
+## Kurulum (kolay yol: exe)
+
+1. [Releases](https://github.com/er2g/lol-chat-detox/releases) sayfasından zip'i indirin ve bir klasöre çıkarın
+2. `install.bat`'a çift tıklayın (yönetici yetkisi ister)
+3. Gemini API anahtarınızı yapıştırın
+4. Bitti — oyunu açtığınızda otomatik devreye girer. Kaldırmak için `uninstall.bat`.
+
+## Kurulum (kaynaktan)
 
 ```
 pip install -r requirements.txt
