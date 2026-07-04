@@ -38,6 +38,11 @@ def make_click_through(root):
 
 
 def main():
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateMutexW(None, False, "lol_overlay_tek")
+    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        return  # zaten çalışan overlay var
+
     # süre verilmezse sonsuz çalışır (watcher oyun kapanınca öldürür)
     duration = float(sys.argv[1]) if len(sys.argv) > 1 else None
     deadline = (time.time() + duration) if duration else None

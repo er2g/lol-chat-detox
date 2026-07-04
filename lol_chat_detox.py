@@ -24,7 +24,11 @@ import keyboard
 import lol_chat_detector as detector
 
 MODEL = "gemini-3.1-flash-lite"  # gerekirse ListModels ile doğrula
-LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lol_detox.log")
+
+# PyInstaller exe'sinde __file__ geçici klasörü gösterir; exe'nin yanına yaz
+BASE_DIR = os.path.dirname(
+    sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
+LOG_PATH = os.path.join(BASE_DIR, "lol_detox.log")
 
 
 def _get_api_key():
@@ -96,8 +100,7 @@ def set_clipboard(text):
         u32.CloseClipboard()
 
 
-HISTORY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "lol_mesaj_gecmisi.log")
+HISTORY_PATH = os.path.join(BASE_DIR, "lol_mesaj_gecmisi.log")
 
 
 def log(msg):

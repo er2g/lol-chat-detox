@@ -11,12 +11,21 @@ import ctypes
 import ctypes.wintypes
 import subprocess
 
-DIR = os.path.dirname(os.path.abspath(__file__))
-SCRIPTS = [
-    os.path.join(DIR, "lol_chat_detox.py"),
-    os.path.join(DIR, "lol_chat_overlay.py"),
-]
-PYTHONW = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+FROZEN = getattr(sys, "frozen", False)
+DIR = os.path.dirname(
+    sys.executable if FROZEN else os.path.abspath(__file__))
+if FROZEN:
+    # exe dağıtımı: kardeş exe'leri çalıştır
+    CHILDREN = [
+        [os.path.join(DIR, "LoLDetox.exe")],
+        [os.path.join(DIR, "LoLOverlay.exe")],
+    ]
+else:
+    PYTHONW = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    CHILDREN = [
+        [PYTHONW, os.path.join(DIR, "lol_chat_detox.py")],
+        [PYTHONW, os.path.join(DIR, "lol_chat_overlay.py")],
+    ]
 GAME_EXE = "league of legends.exe"
 
 TH32CS_SNAPPROCESS = 0x2
@@ -57,17 +66,22 @@ def game_running():
 
 
 def main():
-    procs = {s: None for s in SCRIPTS}
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateMutexW(None, False, "lol_detox_watcher_tek")
+    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        return  # zaten çalışan watcher var
+
+    procs = {i: None for i in range(len(CHILDREN))}
     while True:
         running = game_running()
-        for script, proc in procs.items():
-            if proc is not None and proc.poll() is not None:
-                procs[script] = None  # kendi kendine kapanmış
-            if running and procs[script] is None:
-                procs[script] = subprocess.Popen([PYTHONW, script], cwd=DIR)
-            elif not running and procs[script] is not None:
-                procs[script].terminate()
-                procs[script] = None
+        for i, cmd in enumerate(CHILDREN):
+            if procs[i] is not None and procs[i].poll() is not None:
+                procs[i] = None  # kendi kendine kapanmış
+            if running and procs[i] is None:
+                procs[i] = subprocess.Popen(cmd, cwd=DIR)
+            elif not running and procs[i] is not None:
+                procs[i].terminate()
+                procs[i] = None
         time.sleep(5)
 
 
