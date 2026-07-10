@@ -1,87 +1,130 @@
 # LoL Chat Detox 🧼
 
-League of Legends'ta sinirlenip chat'e küfür yazdığınız anda mesajınızı yakalar,
-Gemini'ye gönderir ve küfrünüzü **resmi-edebi bir dille uzun uzun betimleyen**
-nazik bir tebliğe çevirip onun yerine gönderir. Toksiklik azalır, komedi artar.
+**English** · [Türkçe](README.tr.md)
 
-## Örnek
+Turn toxic League of Legends chat into comedy — either with **Gemini AI** (formal long-winded rewrites) or **Non-AI lookalike glyphs** (every letter spoofed with Cyrillic/Greek lookalikes).
 
-> **Siz:** `YA MASTER YI SENIN BEN O ELLERINI SIKEYIM`
->
-> **Takımın gördüğü:** `MASTER YI, SU AN ELLERINE FIZIKSEL MUDAHALEDE BULUNMA
-> ARZUSU DUYUYORUM CUNKU ALDIGIN KARARLAR BENDE DERIN BIR HAYAL KIRIKLIGI YARATTI`
+> **You type:** `YA MASTER YI IM GONNA BREAK YOUR HANDS`  
+> **Team sees:** `MASTER YI, I PRESENTLY FEEL A STRONG URGE TO PHYSICALLY INTERVENE WITH YOUR HANDS BECAUSE YOUR DECISIONS HAVE CAUSED ME PROFOUND DISAPPOINTMENT`
 
-> **Siz:** `top laneci arkadasim feedlemeyi birakir misin lutfen orospu cocugu`
->
-> **Takımın gördüğü:** `ust koridordaki sayin mesai arkadasim, rakibe surekli
-> teslim olarak oyunu zora sokmaniz bende derin bir husumet ve soy agaciniza
-> dair agir sorgulamalar yaratiyor, lutfen durun.`
+Non-toxic lines (`gg wp`) pass through unchanged in AI mode.
 
-Toksik olmayan mesajlar (`gg wp` vb.) hiç değiştirilmeden gönderilir.
+---
 
-## Nasıl çalışıyor?
+## Features
 
-1. **Chat algılama** (`lol_chat_detector.py`): Ekranın sol altındaki chat giriş
-   kutusunun mavi `[Takım]`/`[Genel]` etiketini piksel bazlı tarar. Milisaniyelik
-   yanlış pozitifleri debounce (`StableState`) ile eler. Sadece LoL ön
-   plandayken çalışır.
-2. **Yakalama ve değiştirme** (`lol_chat_detox.py`): Global klavye kancasıyla
-   chat açıkken yazdıklarınızı kaydeder. Enter'a bastığınızda tuşu yutar,
-   metni Gemini'ye (`gemini-3.1-flash-lite`) gönderir, chat kutusunu temizler,
-   çeviriyi yazar ve kendisi gönderir. Gemini'ye ulaşılamazsa mesaj **hiç
-   gönderilmez** — öfkeli orijinal asla kaçmaz.
-3. **Overlay** (`lol_chat_overlay.py`): Chat'in altında tıklama-geçirgen minik
-   bir durum kutusu (yeşil = açık algılandı). Sistemin çalıştığını görmek için.
-4. **Watcher** (`lol_watcher.pyw`): Windows başlangıcında sessizce çalışır;
-   oyun süreci açılınca detox + overlay'i başlatır, kapanınca durdurur.
-5. **Ayarlar** (`lol_settings.py` / `LoLDetoxSettings.exe`): Prompt'u,
-   kısayolları ve Gemini modelini düzenleyen küçük bir ekran. Kaydedilen
-   ayarları çalışan detox ~2 saniye içinde otomatik alır, yeniden başlatma
-   gerekmez. Ayarlar `config.json`'da durur.
+| Feature | Description |
+|--------|-------------|
+| **AI mode** | Intercepts Enter, rewrites via Gemini, never lets the original flame through if the API fails |
+| **Non-AI mode** | Enter sends raw; configurable trigger (default `Shift+Enter`) spoofs all letters |
+| **Single premium app** | Detox engine + overlay + settings + startup in one process / one EXE |
+| **EN / TR UI** | Full English + Turkish interface (System → Language) |
+| **Configurable hotkeys** | Quit, toggle, Non-AI trigger, AI trigger |
+| **Glyph JSON map** | Edit the lookalike alphabet live |
+| **Safe data dir** | Config/logs in `%APPDATA%\LoLChatDetox\` (not next to the EXE) |
+| **Hard Enter hook** | Permanent low-level Enter capture in AI mode (no suppress race) |
 
-## Kısayollar (varsayılan, ayarlardan değiştirilebilir)
+---
 
-| Kısayol | İşlev |
-|---|---|
-| `Ctrl+Alt+D` | Detox aç/kapa (kapalıyken mesajlar olduğu gibi gider; sesli uyarı verir) |
-| `Ctrl+Alt+Q` | Detox'u tamamen kapat |
+## Download (Windows)
 
-## Kurulum (kolay yol: exe)
+1. Open **[Releases](https://github.com/er2g/lol-chat-detox/releases)**
+2. Download the latest `LoLDetox.exe` (or zip)
+3. Run it (optionally `install.bat` as admin for start-with-Windows)
+4. Pick **English** or **Türkçe** under **System → Language**
 
-1. [Releases](https://github.com/er2g/lol-chat-detox/releases) sayfasından zip'i indirin ve bir klasöre çıkarın
-2. `install.bat`'a çift tıklayın (yönetici yetkisi ister)
-3. Gemini API anahtarınızı yapıştırın
-4. Bitti — oyunu açtığınızda otomatik devreye girer. Kaldırmak için `uninstall.bat`.
+Or from source:
 
-## Kurulum (kaynaktan)
+```bash
+git clone https://github.com/er2g/lol-chat-detox.git
+cd lol-chat-detox
+pip install -r requirements.txt
+python lol_app.py
+```
+
+Gemini key (AI mode only): https://aistudio.google.com/apikey  
+Paste it in **AI / Gemini** in the app (stored locally in config).
+
+---
+
+## Modes
+
+| Mode | Default send | Spoof / detox |
+|------|----------------|---------------|
+| **Non-AI** | `Enter` → send as typed | Trigger (default `Shift+Enter`) → lookalike rewrite |
+| **AI** | Trigger (default `Enter`) → Gemini rewrite | Original is blocked until rewritten |
+
+Toggle detox: `Ctrl+Alt+D` (default)  
+Quit: `Ctrl+Alt+Q` (default)  
+Hotkeys are editable in the app.
+
+---
+
+## How it works
+
+1. Pixel-scans the blue chat channel tag when LoL is foreground  
+2. Records keys while chat is open  
+3. On trigger: rewrites (AI or glyphs), clears the box, types the result, sends  
+4. Optional overlay shows chat open/closed  
+
+---
+
+## Requirements
+
+- **Windows 10/11**
+- League in **borderless / windowed** (not exclusive fullscreen)
+- Chat detector calibrated for **2560×1600** default HUD (other resolutions need region tweak in `lol_chat_detector.py`)
+- AI mode: Gemini API key  
 
 ```
 pip install -r requirements.txt
-setx GEMINI_API_KEY "ANAHTARINIZ"
 ```
 
-Anahtar: https://aistudio.google.com/apikey
+Build single EXE:
 
-Otomatik başlatma için `lol_watcher.pyw`'ye işaret eden bir kısayolu
-`shell:startup` klasörüne koyun (hedef: `pythonw.exe "...\lol_watcher.pyw"`).
+```bash
+python -m PyInstaller LoLDetox.spec --noconfirm
+```
 
-Elle çalıştırma: `python lol_chat_detox.py` (çıkış: `Ctrl+Alt+Q`).
+Output: `dist/LoLDetox.exe`
 
-## Bilinen kısıtlar / notlar
+---
 
-- Piksel koordinatları **2560x1600** çözünürlüğe ve varsayılan HUD ölçeğine
-  kalibredir. Farklı çözünürlükte `REGION` ve renk eşiği yeniden ölçülmeli.
-- Oyun **borderless/windowed** modda olmalı (exclusive fullscreen'de ekran
-  yakalama çalışmaz).
-- Oyun içi chat kutusu **128 UTF-8 byte** kabul ediyor; uzun çeviriler
-  ≤120 byte'lık parçalara bölünüp peş peşe gönderilir.
-- LoL sentetik `Ctrl+V`'yi kabul etmiyor; metin karakter karakter yazılır
-  (karakter başına 5 ms — daha hızlısını oyun yutuyor).
-- Mesaj geçmişi `lol_mesaj_gecmisi.log`'a yazılır (orijinal + çeviri).
-- ⚠️ Klavye kancası ve sentetik girdi kullanır; Vanguard'lı bir oyunda her
-  otomasyonun teorik risk taşıdığını bilerek kendi sorumluluğunuzda kullanın.
-  Rekabet avantajı sağlamaz, sadece sizi daha kibar gösterir.
+## Config location
 
-## Neden?
+```
+%APPDATA%\LoLChatDetox\
+  config.json
+  lol_detox.log
+  lol_mesaj_gecmisi.log   (message history)
+```
 
-Çünkü `/mute all` çözüm değil, kişisel gelişimdir bu.
+---
+
+## Disclaimer
+
+Uses a keyboard hook and synthetic input. On a Vanguard-protected client, **any automation is at your own risk**. This does not provide a competitive advantage — it only makes you look more polite (or more cursed).
+
+---
+
+## Project layout
+
+```
+lol_app.py           # Premium UI + tray lifecycle
+lol_engine.py        # Detox engine
+lol_enter_hook.py    # Permanent WH_KEYBOARD_LL Enter capture
+lol_homoglyph.py     # Non-AI lookalike rewrite
+lol_config.py        # Settings + AppData paths
+lol_i18n.py          # English / Turkish strings
+lol_chat_detector.py # Chat open/closed pixel detector
+```
+
+---
+
+## License
+
+Use at your own risk. Not affiliated with Riot Games.
+
+---
+
+Because `/mute all` is not personal growth.

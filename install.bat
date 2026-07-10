@@ -1,44 +1,43 @@
 @echo off
-rem LoL Chat Detox kurulum — yonetici yetkisi ister, gorev zamanlayiciya kurar
+rem LoL Chat Detox — single EXE install (admin recommended)
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Yonetici yetkisi isteniyor...
+    echo Requesting administrator privileges...
     powershell -Command "Start-Process '%~f0' -Verb RunAs"
     exit /b
 )
 cd /d "%~dp0"
 echo.
-echo === LoL Chat Detox Kurulum ===
+echo === LoL Chat Detox Install ===
 echo.
 
-rem API anahtari kontrolu
-set "CURKEY="
-for /f "tokens=2,*" %%a in ('reg query "HKCU\Environment" /v GEMINI_API_KEY 2^>nul ^| find "GEMINI_API_KEY"') do set "CURKEY=%%b"
-if defined CURKEY (
-    echo Gemini API anahtari zaten kayitli, atlaniyor.
-) else (
-    echo Gemini API anahtari gerekli: https://aistudio.google.com/apikey
-    set /p KEY="Anahtari yapistirin: "
-    setx GEMINI_API_KEY "%KEY%" >nul
-    echo Anahtar kaydedildi.
-)
-
-rem eski python-tabanli startup kisayolu varsa temizle
-del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\LoL Detox Watcher.lnk" >nul 2>&1
-
-rem acilista yonetici yetkisiyle calisan gorev
-schtasks /create /f /tn "LoLChatDetox" /sc onlogon /rl highest /tr "\"%~dp0LoLDetoxWatcher.exe\"" >nul
-if %errorlevel% neq 0 (
-    echo HATA: Zamanlanmis gorev olusturulamadi!
+if not exist "%~dp0LoLDetox.exe" (
+    echo ERROR: LoLDetox.exe not found in this folder.
+    echo Build it first or extract a release zip here.
     pause
     exit /b 1
 )
-echo Baslangic gorevi kuruldu (yonetici yetkili^).
 
-rem hemen baslat
-start "" "%~dp0LoLDetoxWatcher.exe"
+rem Clean old multi-exe tasks / processes
+schtasks /delete /f /tn "LoLChatDetox" >nul 2>&1
+taskkill /f /im LoLDetoxWatcher.exe >nul 2>&1
+taskkill /f /im LoLOverlay.exe >nul 2>&1
+taskkill /f /im LoLDetoxSettings.exe >nul 2>&1
+taskkill /f /im LoLDetox.exe >nul 2>&1
+
+schtasks /create /f /tn "LoLChatDetox" /sc onlogon /rl highest /tr "\"%~dp0LoLDetox.exe\" --background" >nul
+if %errorlevel% neq 0 (
+    schtasks /create /f /tn "LoLChatDetox" /sc onlogon /rl limited /tr "\"%~dp0LoLDetox.exe\" --background" >nul
+)
+if %errorlevel% neq 0 (
+    echo WARNING: Could not create startup task. You can enable it in the app.
+) else (
+    echo Startup task created.
+)
+
+start "" "%~dp0LoLDetox.exe"
 echo.
-echo Kurulum tamamlandi! Oyunu actiginizda otomatik devreye girer.
-echo Kaldirmak icin: uninstall.bat
+echo Done. Configure language, mode, and API key in the app.
+echo Uninstall: uninstall.bat
 echo.
 pause
