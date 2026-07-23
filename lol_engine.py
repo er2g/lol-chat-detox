@@ -20,7 +20,7 @@ import mss
 import lol_chat_detector as detector
 import lol_config
 import lol_homoglyph
-from lol_enter_hook import EnterHook
+from lol_enter_hook import EnterHook, PasteHook
 
 PASTE_MODE = False
 CHAT_BYTE_LIMIT = 120
@@ -112,6 +112,33 @@ def set_clipboard(text):
         u32.CloseClipboard()
 
 
+def get_clipboard():
+    """Panodaki Unicode metni oku (yoksa ""). Yapıştırma özelliği için."""
+    CF_UNICODETEXT = 13
+    k32 = ctypes.windll.kernel32
+    u32 = ctypes.windll.user32
+    k32.GlobalLock.restype = ctypes.c_void_p
+    k32.GlobalLock.argtypes = [ctypes.c_void_p]
+    k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    u32.GetClipboardData.restype = ctypes.c_void_p
+    u32.GetClipboardData.argtypes = [ctypes.c_uint]
+    if not u32.OpenClipboard(0):
+        return ""
+    try:
+        h = u32.GetClipboardData(CF_UNICODETEXT)
+        if not h:
+            return ""
+        p = k32.GlobalLock(h)
+        if not p:
+            return ""
+        try:
+            return ctypes.c_wchar_p(p).value or ""
+        finally:
+            k32.GlobalUnlock(h)
+    finally:
+        u32.CloseClipboard()
+
+
 class DetoxEngine:
     def __init__(self, on_log=None, on_status=None):
         self._on_log = on_log
@@ -133,6 +160,7 @@ class DetoxEngine:
         self.enter_hotkey = None  # eski keyboard hotkey — kullanılmıyor (AI enter)
         self.trigger_hotkey = None  # non-ai veya özel ai trigger
         self._enter_hook = None  # kalıcı LL Enter yakalayıcı
+        self._paste_hook = None  # kalıcı LL Ctrl+V yakalayıcı (dış pano yapıştır)
         self._key_hook = None
         self.last_log_lines = []
         self.BASE_DIR = lol_config.DATA_DIR
@@ -218,6 +246,7 @@ class DetoxEngine:
                 or old.get("toggle_hotkey") != self.cfg.get("toggle_hotkey")
                 or old.get("trigger_hotkey") != self.cfg.get("trigger_hotkey")
                 or old.get("ai_trigger_hotkey") != self.cfg.get("ai_trigger_hotkey")
+                or old.get("non_ai_auto_enter") != self.cfg.get("non_ai_auto_enter")
                 or old.get("run_only_when_game") != self.cfg.get("run_only_when_game")
             )
         if need:
@@ -258,6 +287,14 @@ class DetoxEngine:
                 pass
             self._enter_hook = None
 
+    def _stop_paste_hook(self):
+        if self._paste_hook is not None:
+            try:
+                self._paste_hook.stop()
+            except Exception:
+                pass
+            self._paste_hook = None
+
     def _unbind_hooks(self):
         for h in self._hotkey_handles:
             self._remove_hotkey(h)
@@ -267,6 +304,7 @@ class DetoxEngine:
         self.enter_hotkey = None
         self.trigger_hotkey = None
         self._stop_enter_hook()
+        self._stop_paste_hook()
         if self._key_hook is not None:
             try:
                 keyboard.unhook(self._key_hook)
@@ -298,16 +336,22 @@ class DetoxEngine:
                         ai_hk, self._on_ai_trigger, suppress=True)
             else:
                 trig = (cfg.get("trigger_hotkey") or "shift+enter").strip().lower()
-                self.trigger_hotkey = keyboard.add_hotkey(
-                    trig, self._on_non_ai_trigger, suppress=True)
-                # Non-AI tetik shift+enter ise düz Enter oyuna gider (hook yok)
-                # Eğer trigger sadece "enter" ise LL hook kullan
-                if trig == "enter":
-                    self._remove_hotkey(self.trigger_hotkey)
-                    self.trigger_hotkey = None
+                auto_enter = bool(cfg.get("non_ai_auto_enter"))
+                # Otomatik sansür: shift gerekmeden sadece Enter → LL hook.
+                # (trigger "enter" yazıldıysa da aynı yol.)
+                if auto_enter or trig == "enter":
                     self._enter_hook = EnterHook(self._on_non_ai_trigger)
                     if not self._enter_hook.start():
                         raise RuntimeError("Enter LL-hook baslatilamadi")
+                    self.log("Non-AI otomatik sansür AKTIF (her Enter yakalanır)")
+                else:
+                    self.trigger_hotkey = keyboard.add_hotkey(
+                        trig, self._on_non_ai_trigger, suppress=True)
+            # Dış pano yapıştırma kancası (mod bağımsız — chat açıkken Ctrl+V)
+            self._paste_hook = PasteHook(self._should_paste, self._on_paste)
+            if not self._paste_hook.start():
+                self._paste_hook = None
+                self.log("! Ctrl+V yapistirma kancasi baslatilamadi")
             self._key_hook = keyboard.on_press(self._on_key)
             self.hooks_active = True
             self.log(
@@ -317,6 +361,7 @@ class DetoxEngine:
         except Exception as e:
             self.hooks_active = False
             self._stop_enter_hook()
+            self._stop_paste_hook()
             self.log(f"! kanca hatasi: {e}")
 
     def _sync_hooks(self):
@@ -478,6 +523,48 @@ class DetoxEngine:
         finally:
             self.injecting = False
 
+    # --- dış pano yapıştırma (Ctrl+V) ---
+    def _should_paste(self):
+        """PasteHook (hook thread) tarafından çağrılır — HIZLI olmalı.
+        Sadece chat açıkken ve yapıştırma açıkken devral; yoksa Ctrl+V normal
+        geçsin. injecting sırasında (kendi yazımımız) devralma."""
+        return (
+            bool(self.cfg.get("paste_enabled", True))
+            and self.chat_open
+            and not self.injecting
+        )
+
+    def _on_paste(self):
+        """Ctrl+V yakalandı — pano metnini oyuna yazarak yapıştır."""
+        if self.injecting:
+            return
+        text = get_clipboard()
+        if not text:
+            return
+        threading.Thread(
+            target=self._paste_text, args=(text,), daemon=True,
+            name="detox-paste",
+        ).start()
+
+    def _paste_text(self, text):
+        # Chat tek satır: yeni satırları boşluğa çevir (erken göndermesin).
+        text = text.replace("\r", " ").replace("\n", " ")
+        text = "".join(ch for ch in text if ch >= " " or ch == "\t").strip()
+        if not text:
+            return
+        with self._enter_gate:
+            self.injecting = True
+            try:
+                preview = text[:40] + ("…" if len(text) > 40 else "")
+                self.log(f"yapistir: {preview!r} ({len(text)} krkt)")
+                keyboard.write(text, delay=0.005)
+                # Buffer'ı ekranla eşle: Enter'da detox doğru sayıda backspace atsın
+                with self.lock:
+                    self.buffer.extend(list(text))
+            finally:
+                time.sleep(0.03)
+                self.injecting = False
+
     def _take_buffer(self):
         with self.lock:
             text = "".join(self.buffer).strip()
@@ -526,8 +613,16 @@ class DetoxEngine:
             return
         name = event.name
         if name is None or name in IGNORED:
+            # Non-AI + shift+enter tetikleyicide: shift'siz düz Enter "ham gönder"
+            # demektir → buffer'ı temizle. AMA otomatik sansür (düz Enter tetik)
+            # açıksa Enter'ı _on_non_ai_trigger devralır; burada temizleME.
+            auto_enter = (
+                bool(self.cfg.get("non_ai_auto_enter"))
+                or (self.cfg.get("trigger_hotkey") or "").strip().lower() == "enter"
+            )
             if (name == "enter"
                     and self.cfg.get("mode") == "non_ai"
+                    and not auto_enter
                     and not keyboard.is_pressed("shift")):
                 with self.lock:
                     self.buffer = []

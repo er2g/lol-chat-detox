@@ -105,6 +105,11 @@ _STRINGS = {
         "mode_ai_desc": "Trigger (default Enter) sends the message to Gemini and "
                         "replaces toxicity with formal long-winded phrasing.",
         "btn_save_mode": "Save & apply mode",
+        "auto_censor_chk": "Auto-censor: every Enter (no Shift needed)",
+        "auto_censor_hint": "Non-AI mode only: instead of Shift+Enter, plain Enter "
+                            "spoofs & sends the message automatically.",
+        "auto_censor_on": "Auto-censor ON (plain Enter)",
+        "auto_censor_off": "Auto-censor OFF (Shift+Enter)",
         "ai_title": "Gemini settings",
         "ai_hint": "Key is stored only on this PC in config.json. "
                    "https://aistudio.google.com/apikey",
@@ -131,6 +136,7 @@ _STRINGS = {
         "btn_save_hotkeys": "Save hotkeys",
         "sys_title": "System",
         "chk_enabled": "Detox enabled by default",
+        "chk_paste": "Paste external text into LoL with Ctrl+V (types it in)",
         "chk_overlay": "In-game status overlay",
         "chk_game_only": "Keyboard hooks only while LoL is running",
         "chk_startup": "Start in background with Windows",
@@ -232,6 +238,11 @@ _STRINGS = {
         "mode_ai_desc": "Tetikleyici (varsayılan Enter) mesajı Gemini'ye yollar; "
                         "küfür resmi-edebi tebliğe çevrilir.",
         "btn_save_mode": "Modu kaydet & uygula",
+        "auto_censor_chk": "Otomatik sansür: her Enter (Shift gerekmez)",
+        "auto_censor_hint": "Sadece Non-AI modda: Shift+Enter yerine düz Enter "
+                            "mesajı otomatik sansürleyip gönderir.",
+        "auto_censor_on": "Otomatik sansür AÇIK (düz Enter)",
+        "auto_censor_off": "Otomatik sansür KAPALI (Shift+Enter)",
         "ai_title": "Gemini ayarları",
         "ai_hint": "Anahtar yalnızca bu PC'de config.json içinde saklanır. "
                    "https://aistudio.google.com/apikey",
@@ -258,6 +269,7 @@ _STRINGS = {
         "btn_save_hotkeys": "Kısayolları kaydet",
         "sys_title": "Sistem",
         "chk_enabled": "Detox varsayılan olarak açık",
+        "chk_paste": "Dış metni LoL'e Ctrl+V ile yapıştır (yazarak girer)",
         "chk_overlay": "Oyun içi durum overlay'i",
         "chk_game_only": "Klavye kancaları yalnızca LoL açıkken",
         "chk_startup": "PC açılınca arka planda başlat",
