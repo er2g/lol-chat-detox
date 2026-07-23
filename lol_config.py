@@ -108,6 +108,8 @@ DEFAULTS = {
     "toggle_hotkey": "ctrl+alt+d",
     "trigger_hotkey": "shift+enter",
     "ai_trigger_hotkey": "enter",
+    "non_ai_auto_enter": False,  # Non-AI: shift gerekmeden sadece Enter ile sansür
+    "paste_enabled": True,       # LoL dışından Ctrl+C → oyunda Ctrl+V (yazarak)
     "overlay_enabled": True,
     "run_only_when_game": True,
     "start_with_windows": False,
@@ -118,6 +120,7 @@ DEFAULTS = {
 _BOOL_KEYS = {
     "enabled", "overlay_enabled", "run_only_when_game",
     "start_with_windows", "start_minimized",
+    "non_ai_auto_enter", "paste_enabled",
 }
 _STR_KEYS = {
     "language", "mode", "prompt", "model", "api_key",

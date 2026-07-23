@@ -570,9 +570,28 @@ class App:
                      font=_font(8), wraplength=700, justify="left").pack(
                 anchor="w", padx=28, pady=(0, 12))
 
+        # Non-AI otomatik sansür: shift gerekmeden sadece Enter
+        self.var_auto_censor = tk.BooleanVar(
+            value=bool(self.cfg.get("non_ai_auto_enter", False)))
+        tk.Checkbutton(
+            c, text=t("auto_censor_chk"), variable=self.var_auto_censor,
+            bg=CARD, fg=FG, selectcolor=BG2, activebackground=CARD,
+            activeforeground=FG, font=_font(10), anchor="w",
+            command=self._on_auto_censor_toggle,
+        ).pack(fill="x", padx=16, pady=(6, 0))
+        self._hint(c, t("auto_censor_hint"))
+
         self._btn(c, t("btn_save_mode"), self._apply_mode_page,
                   accent=True).pack(anchor="w", padx=16, pady=(8, 16))
         return page
+
+    def _on_auto_censor_toggle(self):
+        self.cfg["non_ai_auto_enter"] = bool(self.var_auto_censor.get())
+        lol_config.save_config(self.cfg)
+        self.engine.apply_config(lol_config.load_config(), rebind=True)
+        self.cfg = lol_config.load_config()
+        self._toast(t("auto_censor_on") if self.cfg["non_ai_auto_enter"]
+                    else t("auto_censor_off"))
 
     def _page_ai(self, parent):
         page = tk.Frame(parent, bg=BG)
@@ -690,6 +709,7 @@ class App:
         self.var_startup = tk.BooleanVar(value=bool(self.cfg.get("start_with_windows", False)))
         self.var_min = tk.BooleanVar(value=bool(self.cfg.get("start_minimized", False)))
         self.var_enabled = tk.BooleanVar(value=bool(self.cfg.get("enabled", True)))
+        self.var_paste = tk.BooleanVar(value=bool(self.cfg.get("paste_enabled", True)))
 
         def chk(text, var):
             tk.Checkbutton(
@@ -699,6 +719,7 @@ class App:
             ).pack(fill="x", padx=16, pady=4)
 
         chk(t("chk_enabled"), self.var_enabled)
+        chk(t("chk_paste"), self.var_paste)
         chk(t("chk_overlay"), self.var_overlay)
         chk(t("chk_game_only"), self.var_game_only)
         chk(t("chk_startup"), self.var_startup)
@@ -770,9 +791,9 @@ class App:
             "system": (t("hdr_system"), t("hdr_system_sub")),
             "logs": (t("hdr_logs"), t("hdr_logs_sub")),
         }
-        t, s = titles.get(key, (key, ""))
-        self.header_title.config(text=t)
-        self.header_sub.config(text=s)
+        title, sub = titles.get(key, (key, ""))
+        self.header_title.config(text=title)
+        self.header_sub.config(text=sub)
         for k, fr in self.pages.items():
             if k == key:
                 fr.pack(fill="both", expand=True)
@@ -805,6 +826,9 @@ class App:
             cfg["start_with_windows"] = self.var_startup.get()
             cfg["start_minimized"] = self.var_min.get()
             cfg["enabled"] = self.var_enabled.get()
+            cfg["paste_enabled"] = self.var_paste.get()
+        if hasattr(self, "var_auto_censor"):
+            cfg["non_ai_auto_enter"] = self.var_auto_censor.get()
         return cfg
 
     def _parse_homo(self):
@@ -947,6 +971,7 @@ class App:
         self.cfg["overlay_enabled"] = self.var_overlay.get()
         self.cfg["run_only_when_game"] = self.var_game_only.get()
         self.cfg["start_minimized"] = self.var_min.get()
+        self.cfg["paste_enabled"] = self.var_paste.get()
         want_startup = self.var_startup.get()
         ok, msg = lol_config.set_start_with_windows(want_startup)
         self.cfg["start_with_windows"] = lol_config.is_start_with_windows()
