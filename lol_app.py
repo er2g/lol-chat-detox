@@ -791,9 +791,9 @@ class App:
             "system": (t("hdr_system"), t("hdr_system_sub")),
             "logs": (t("hdr_logs"), t("hdr_logs_sub")),
         }
-        t, s = titles.get(key, (key, ""))
-        self.header_title.config(text=t)
-        self.header_sub.config(text=s)
+        title, sub = titles.get(key, (key, ""))
+        self.header_title.config(text=title)
+        self.header_sub.config(text=sub)
         for k, fr in self.pages.items():
             if k == key:
                 fr.pack(fill="both", expand=True)
